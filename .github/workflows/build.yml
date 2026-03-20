@@ -16,4 +16,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: build-android32
-          path: "*.geode"
+          path: "build/**/*.geode"
