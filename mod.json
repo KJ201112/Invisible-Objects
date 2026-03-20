@@ -1,0 +1,14 @@
+{
+    "$schema": "https://raw.githubusercontent.com/geode-sdk/geode/main/loader/include/Geode/loader/mod.json",
+    "geode": "5.3.0",
+    "gd": {
+        "android": "2.2081"
+    },
+    "id": "kj201112.invisible-objects",
+    "name": "Level Invisible Mod",
+    "version": "v1.0.0",
+    "developer": "KJ",
+    "description": "Tap 3 fingers in any level to toggle all objects invisible. Hitboxes stay active!",
+    "icon": "icon.png",
+    "tags": ["gameplay", "challenge", "difficulty"]
+}
