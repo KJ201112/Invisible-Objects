@@ -8,6 +8,10 @@ static bool g_invisibleMode = false;
 class $modify(InvisibleObjectsMod, PlayLayer) {
     struct Fields {
         CCLabelBMFont* buttonLabel = nullptr;
+        CCNode* playerParent1 = nullptr;
+        CCNode* playerParent2 = nullptr;
+        int playerZ1 = 0;
+        int playerZ2 = 0;
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
@@ -35,36 +39,65 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         auto menu = CCMenu::create();
         menu->addChild(item);
         menu->setPosition({ 50.f, winSize.height - 25.f });
-        this->addChild(menu, 999);
+        this->addChild(menu, 9999);
 
         return true;
+    }
+
+    void hideObjects() {
+        // Save original parents and z-orders of players
+        if (m_player1) {
+            m_fields->playerParent1 = m_player1->getParent();
+            m_fields->playerZ1 = m_player1->getZOrder();
+            // Move player1 directly to PlayLayer at very high z
+            m_player1->retain();
+            m_player1->removeFromParentAndCleanup(false);
+            this->addChild(m_player1, 9000);
+            m_player1->release();
+        }
+        if (m_player2) {
+            m_fields->playerParent2 = m_player2->getParent();
+            m_fields->playerZ2 = m_player2->getZOrder();
+            m_player2->retain();
+            m_player2->removeFromParentAndCleanup(false);
+            this->addChild(m_player2, 9001);
+            m_player2->release();
+        }
+
+        // Now hide the entire object layer — everything is gone
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(false);
+        }
+    }
+
+    void showObjects() {
+        // Restore object layer
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(true);
+        }
+
+        // Move players back to their original parent
+        if (m_player1 && m_fields->playerParent1) {
+            m_player1->retain();
+            m_player1->removeFromParentAndCleanup(false);
+            m_fields->playerParent1->addChild(m_player1, m_fields->playerZ1);
+            m_player1->release();
+        }
+        if (m_player2 && m_fields->playerParent2) {
+            m_player2->retain();
+            m_player2->removeFromParentAndCleanup(false);
+            m_fields->playerParent2->addChild(m_player2, m_fields->playerZ2);
+            m_player2->release();
+        }
     }
 
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
 
         if (g_invisibleMode) {
-            // Hide every object individually but keep players visible
-            if (m_objects) {
-                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
-                    if (!typeinfo_cast<PlayerObject*>(obj)) {
-                        obj->setVisible(false);
-                    }
-                }
-            }
-            // Always keep players visible
-            if (m_player1) m_player1->setVisible(true);
-            if (m_player2) m_player2->setVisible(true);
-
+            hideObjects();
         } else {
-            // Show everything back
-            if (m_objects) {
-                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
-                    obj->setVisible(true);
-                }
-            }
-            if (m_player1) m_player1->setVisible(true);
-            if (m_player2) m_player2->setVisible(true);
+            showObjects();
         }
 
         if (m_fields->buttonLabel) {
@@ -88,32 +121,24 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         log::info("Invisible mode toggled");
     }
 
-    // Re-hide on every new object added
-    void addObject(GameObject* obj) {
-        PlayLayer::addObject(obj);
-        if (g_invisibleMode && obj && !typeinfo_cast<PlayerObject*>(obj)) {
-            obj->setVisible(false);
-        }
-    }
-
-    // Re-hide after death/restart
     void resetLevel() {
-        PlayLayer::resetLevel();
+        // Restore before reset so GD can reposition players properly
         if (g_invisibleMode) {
-            if (m_objects) {
-                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
-                    if (!typeinfo_cast<PlayerObject*>(obj)) {
-                        obj->setVisible(false);
-                    }
-                }
-            }
-            if (m_player1) m_player1->setVisible(true);
-            if (m_player2) m_player2->setVisible(true);
+            showObjects();
+        }
+        PlayLayer::resetLevel();
+        // Re-hide after reset
+        if (g_invisibleMode) {
+            hideObjects();
         }
     }
 
     void onQuit() {
-        g_invisibleMode = false;
+        // Restore everything before quitting
+        if (g_invisibleMode) {
+            showObjects();
+            g_invisibleMode = false;
+        }
         PlayLayer::onQuit();
     }
 };
