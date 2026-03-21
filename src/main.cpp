@@ -5,18 +5,15 @@ using namespace geode::prelude;
 
 static bool g_invisibleMode = false;
 
-// Recursively hide/show all nodes except PlayerObject
 static void applyToChildren(CCNode* node, bool invisible) {
     if (!node) return;
 
     for (auto child : CCArrayExt<CCNode*>(node->getChildren())) {
-        // Never hide the player
         if (typeinfo_cast<PlayerObject*>(child)) {
             child->setVisible(true);
             continue;
         }
         child->setVisible(!invisible);
-        // Go deeper into children
         applyToChildren(child, invisible);
     }
 }
@@ -56,17 +53,27 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         return true;
     }
 
+    void applyInvisible(bool invisible) {
+        if (!m_objectLayer) return;
+
+        applyToChildren(m_objectLayer, invisible);
+
+        // Always force both players visible no matter what
+        if (m_player1) {
+            m_player1->setVisible(true);
+            // Also show all children of player1
+            applyToChildren(m_player1, false);
+        }
+        if (m_player2) {
+            m_player2->setVisible(true);
+            applyToChildren(m_player2, false);
+        }
+    }
+
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
 
-        // Recursively hide everything in objectLayer except player
-        if (m_objectLayer) {
-            applyToChildren(m_objectLayer, g_invisibleMode);
-        }
-
-        // Always keep players visible
-        if (m_player1) m_player1->setVisible(true);
-        if (m_player2) m_player2->setVisible(true);
+        applyInvisible(g_invisibleMode);
 
         if (m_fields->buttonLabel) {
             m_fields->buttonLabel->setString(
@@ -91,18 +98,18 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
     void addObject(GameObject* obj) {
         PlayLayer::addObject(obj);
-        if (g_invisibleMode && obj && !typeinfo_cast<PlayerObject*>(obj)) {
-            obj->setVisible(false);
-            applyToChildren(obj, true);
+        if (g_invisibleMode && obj) {
+            if (!typeinfo_cast<PlayerObject*>(obj)) {
+                obj->setVisible(false);
+                applyToChildren(obj, true);
+            }
         }
     }
 
     void resetLevel() {
         PlayLayer::resetLevel();
-        if (g_invisibleMode && m_objectLayer) {
-            applyToChildren(m_objectLayer, true);
-            if (m_player1) m_player1->setVisible(true);
-            if (m_player2) m_player2->setVisible(true);
+        if (g_invisibleMode) {
+            applyInvisible(true);
         }
     }
 
