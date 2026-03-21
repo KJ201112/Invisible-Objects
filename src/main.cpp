@@ -1,12 +1,12 @@
 // =============================================================================
 //  Level Invisible Mod — Geode Mod for Geometry Dash (Android)
-//  Author  : KJ
-//  Version : v1.0.0
+//  Author  : KJ  |  Version : v1.0.0
 //
-//  HOW TO USE
-//  ----------
-//  A small "👁 ON/OFF" button appears in the top-left corner while
-//  playing any level. Tap it to toggle all objects invisible/visible.
+//  HOW TO USE: Tap the "EYE:OFF" button in the top-left corner
+//  while playing any level to toggle all objects invisible/visible.
+//
+//  FIX: We hide m_objectLayer (the entire object container) every frame
+//  in update() so GD can't override our visibility change.
 // =============================================================================
 
 #include <Geode/Geode.hpp>
@@ -14,28 +14,10 @@
 
 using namespace geode::prelude;
 
-// Global toggle state
 static bool g_invisible = false;
 
 // =============================================================================
-//  Apply invisibility to all objects in the level
-// =============================================================================
-void applyInvisibility(PlayLayer* pl, bool invisible) {
-    if (!pl || !pl->m_objects) return;
-
-    GLubyte opacity = invisible ? 0 : 255;
-    CCArray* objects = pl->m_objects;
-
-    for (int i = 0; i < objects->count(); i++) {
-        auto* obj = static_cast<GameObject*>(objects->objectAtIndex(i));
-        if (obj) {
-            obj->setOpacity(opacity);
-        }
-    }
-}
-
-// =============================================================================
-//  Show a notification banner on screen
+//  Show notification banner
 // =============================================================================
 void showNotification(bool invisible) {
     if (invisible) {
@@ -54,113 +36,94 @@ void showNotification(bool invisible) {
 
 // =============================================================================
 //  PlayLayer Hook
-//  We add an on-screen button when the level starts (init)
-//  and update its label when tapped.
 // =============================================================================
 class $modify(InvisibleObjectsMod, PlayLayer) {
 
-    // Store pointer to the button label so we can update its text
     struct Fields {
         CCLabelBMFont* buttonLabel = nullptr;
     };
 
     // -------------------------------------------------------------------------
-    //  init — called when the level loads
-    //  We create a small button and place it in the top-left corner
+    //  init — adds the toggle button when the level loads
     // -------------------------------------------------------------------------
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
-        // Run original init first — MUST return false if it fails
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
-        // Get screen size so we can position the button correctly
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        // --- Create the button label (the text shown on the button) ---
+        // Button label
         auto label = CCLabelBMFont::create("EYE:OFF", "bigFont.fnt");
         label->setScale(0.35f);
         m_fields->buttonLabel = label;
 
-        // --- Create a dark background box behind the label ---
+        // Dark background
         auto bg = CCScale9Sprite::create("square02_small.png");
         bg->setContentSize({70, 22});
-        bg->setOpacity(160);
+        bg->setOpacity(180);
         bg->setColor({0, 0, 0});
 
-        // --- Wrap label + bg into a menu item ---
-        // CCMenuItemSpriteExtra is Geode's button class
+        // Button
         auto btn = CCMenuItemSpriteExtra::create(
-            bg,
-            this,
+            bg, this,
             menu_selector(InvisibleObjectsMod::onToggleButton)
         );
 
-        // Put the label on top of the background
         label->setPosition({35, 11});
         bg->addChild(label);
 
-        // --- Create a menu to hold the button ---
         auto menu = CCMenu::create();
         menu->addChild(btn);
-
-        // Position button in top-left corner
         menu->setPosition({40, winSize.height - 20});
 
-        // zOrder 100 keeps it above game objects
-        this->addChild(menu, 100);
+        // zOrder 999 keeps button above everything
+        this->addChild(menu, 999);
 
         return true;
     }
 
     // -------------------------------------------------------------------------
-    //  onToggleButton — called when the button is tapped
+    //  update — called every frame
+    //  We hide/show the object layer here so GD can't override it
+    // -------------------------------------------------------------------------
+    void update(float dt) {
+        PlayLayer::update(dt);
+
+        // m_objectLayer contains ALL visual objects in the level
+        // Hiding it every frame ensures nothing overrides our toggle
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(!g_invisible);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    //  onToggleButton — tap to toggle
     // -------------------------------------------------------------------------
     void onToggleButton(CCObject*) {
-        // Flip toggle
         g_invisible = !g_invisible;
 
-        // Apply to all objects
-        applyInvisibility(this, g_invisible);
-
-        // Update button label text
+        // Update button text
         if (m_fields->buttonLabel) {
             m_fields->buttonLabel->setString(
-                g_invisible ? "EYE:ON" : "EYE:OFF"
+                g_invisible ? "EYE:ON " : "EYE:OFF"
             );
         }
 
-        // Show notification
         showNotification(g_invisible);
     }
 
     // -------------------------------------------------------------------------
-    //  addObject — hide new objects immediately if invisible mode is on
-    // -------------------------------------------------------------------------
-    void addObject(GameObject* obj) {
-        PlayLayer::addObject(obj);
-        if (g_invisible && obj) {
-            obj->setOpacity(0);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    //  resetLevel — re-apply invisibility after death/restart
-    // -------------------------------------------------------------------------
-    void resetLevel() {
-        PlayLayer::resetLevel();
-        if (g_invisible) {
-            applyInvisibility(this, true);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    //  onQuit — reset toggle when leaving the level
+    //  onQuit — reset when leaving
     // -------------------------------------------------------------------------
     void onQuit() {
         g_invisible = false;
+        // Make sure objects are visible again before quitting
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(true);
+        }
         PlayLayer::onQuit();
     }
 };
 
 $on_mod(Loaded) {
-    log::info("Level Invisible Mod loaded! Tap the EYE button in a level.");
+    log::info("Level Invisible Mod loaded! Tap EYE button in a level.");
 }
