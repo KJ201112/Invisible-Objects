@@ -2,11 +2,12 @@
 //  Level Invisible Mod — Geode Mod for Geometry Dash (Android)
 //  Author  : KJ  |  Version : v1.0.0
 //
-//  HOW TO USE: Tap the "EYE:OFF" button in the top-left corner
-//  while playing any level to toggle all objects invisible/visible.
+//  HOW TO USE: Tap the "EYE:OFF" button in the top-left corner.
 //
-//  FIX: We hide m_objectLayer (the entire object container) every frame
-//  in update() so GD can't override our visibility change.
+//  HOW IT WORKS:
+//  A black overlay covers the entire screen BETWEEN the objects and
+//  the player icon. Objects are hidden behind it, but your cube/ship
+//  is drawn on top so you can still see yourself.
 // =============================================================================
 
 #include <Geode/Geode.hpp>
@@ -16,9 +17,6 @@ using namespace geode::prelude;
 
 static bool g_invisible = false;
 
-// =============================================================================
-//  Show notification banner
-// =============================================================================
 void showNotification(bool invisible) {
     if (invisible) {
         Notification::create(
@@ -31,38 +29,48 @@ void showNotification(bool invisible) {
             NotificationIcon::Success
         )->show();
     }
-    log::info("Invisible mode toggled");
 }
 
-// =============================================================================
-//  PlayLayer Hook
-// =============================================================================
 class $modify(InvisibleObjectsMod, PlayLayer) {
 
     struct Fields {
         CCLabelBMFont* buttonLabel = nullptr;
+        CCLayerColor* overlay = nullptr;
     };
 
-    // -------------------------------------------------------------------------
-    //  init — adds the toggle button when the level loads
-    // -------------------------------------------------------------------------
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
         if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        // Button label
+        // ---------------------------------------------------------------
+        //  BLACK OVERLAY
+        //  zOrder 10 = above all level objects (blocks/spikes/portals)
+        //  zOrder below player so your icon stays visible on top
+        //  The player is typically at zOrder 100+ in PlayLayer
+        // ---------------------------------------------------------------
+        auto overlay = CCLayerColor::create(
+            ccc4(0, 0, 0, 255), // solid black
+            winSize.width,
+            winSize.height
+        );
+        overlay->setVisible(false); // start hidden
+        overlay->setZOrder(10);     // above objects, below player UI
+        this->addChild(overlay, 10);
+        m_fields->overlay = overlay;
+
+        // ---------------------------------------------------------------
+        //  EYE BUTTON — top left corner
+        // ---------------------------------------------------------------
         auto label = CCLabelBMFont::create("EYE:OFF", "bigFont.fnt");
         label->setScale(0.35f);
         m_fields->buttonLabel = label;
 
-        // Dark background
         auto bg = CCScale9Sprite::create("square02_small.png");
         bg->setContentSize({70, 22});
-        bg->setOpacity(180);
+        bg->setOpacity(200);
         bg->setColor({0, 0, 0});
 
-        // Button
         auto btn = CCMenuItemSpriteExtra::create(
             bg, this,
             menu_selector(InvisibleObjectsMod::onToggleButton)
@@ -74,32 +82,17 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         auto menu = CCMenu::create();
         menu->addChild(btn);
         menu->setPosition({40, winSize.height - 20});
-
-        // zOrder 999 keeps button above everything
-        this->addChild(menu, 999);
-
+        this->addChild(menu, 999); // always on top
         return true;
     }
 
-    // -------------------------------------------------------------------------
-    //  update — called every frame
-    //  We hide/show the object layer here so GD can't override it
-    // -------------------------------------------------------------------------
-    void update(float dt) {
-        PlayLayer::update(dt);
-
-        // m_objectLayer contains ALL visual objects in the level
-        // Hiding it every frame ensures nothing overrides our toggle
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(!g_invisible);
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    //  onToggleButton — tap to toggle
-    // -------------------------------------------------------------------------
     void onToggleButton(CCObject*) {
         g_invisible = !g_invisible;
+
+        // Show or hide the black overlay
+        if (m_fields->overlay) {
+            m_fields->overlay->setVisible(g_invisible);
+        }
 
         // Update button text
         if (m_fields->buttonLabel) {
@@ -109,18 +102,23 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         }
 
         showNotification(g_invisible);
+        log::info("Invisible toggled");
     }
 
-    // -------------------------------------------------------------------------
-    //  onQuit — reset when leaving
-    // -------------------------------------------------------------------------
     void onQuit() {
         g_invisible = false;
-        // Make sure objects are visible again before quitting
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(true);
+        if (m_fields->overlay) {
+            m_fields->overlay->setVisible(false);
         }
         PlayLayer::onQuit();
+    }
+
+    void resetLevel() {
+        PlayLayer::resetLevel();
+        // Keep overlay state after death
+        if (m_fields->overlay) {
+            m_fields->overlay->setVisible(g_invisible);
+        }
     }
 };
 
