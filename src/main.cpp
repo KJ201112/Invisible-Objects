@@ -16,7 +16,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
-        // Button label
         auto label = CCLabelBMFont::create("EYE:OFF", "bigFont.fnt");
         label->setScale(0.35f);
         m_fields->buttonLabel = label;
@@ -44,28 +43,36 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
 
-        // Hide/show the entire object layer at once
-        // This is the most reliable method — one call hides everything
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(!g_invisibleMode);
+        if (g_invisibleMode) {
+            // Hide every object individually but keep players visible
+            if (m_objects) {
+                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
+                    if (!typeinfo_cast<PlayerObject*>(obj)) {
+                        obj->setVisible(false);
+                    }
+                }
+            }
+            // Always keep players visible
+            if (m_player1) m_player1->setVisible(true);
+            if (m_player2) m_player2->setVisible(true);
+
+        } else {
+            // Show everything back
+            if (m_objects) {
+                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
+                    obj->setVisible(true);
+                }
+            }
+            if (m_player1) m_player1->setVisible(true);
+            if (m_player2) m_player2->setVisible(true);
         }
 
-        // Move player ABOVE the object layer so it's always visible
-        if (m_player1) {
-            m_player1->setZOrder(m_objectLayer ? m_objectLayer->getZOrder() + 10 : 10);
-        }
-        if (m_player2) {
-            m_player2->setZOrder(m_objectLayer ? m_objectLayer->getZOrder() + 10 : 10);
-        }
-
-        // Update button text
         if (m_fields->buttonLabel) {
             m_fields->buttonLabel->setString(
                 g_invisibleMode ? "EYE:ON " : "EYE:OFF"
             );
         }
 
-        // Notification
         if (g_invisibleMode) {
             Notification::create(
                 "Invisible Mode ON - Good luck!",
@@ -81,25 +88,33 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         log::info("Invisible mode toggled");
     }
 
-    void onQuit() {
-        g_invisibleMode = false;
-        // Restore object layer visibility when leaving
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(true);
+    // Re-hide on every new object added
+    void addObject(GameObject* obj) {
+        PlayLayer::addObject(obj);
+        if (g_invisibleMode && obj && !typeinfo_cast<PlayerObject*>(obj)) {
+            obj->setVisible(false);
         }
-        PlayLayer::onQuit();
     }
 
+    // Re-hide after death/restart
     void resetLevel() {
         PlayLayer::resetLevel();
-        // Keep state after death
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(!g_invisibleMode);
+        if (g_invisibleMode) {
+            if (m_objects) {
+                for (auto obj : CCArrayExt<GameObject*>(m_objects)) {
+                    if (!typeinfo_cast<PlayerObject*>(obj)) {
+                        obj->setVisible(false);
+                    }
+                }
+            }
+            if (m_player1) m_player1->setVisible(true);
+            if (m_player2) m_player2->setVisible(true);
         }
-        // Keep player visible
-        if (m_player1 && m_objectLayer) {
-            m_player1->setZOrder(m_objectLayer->getZOrder() + 10);
-        }
+    }
+
+    void onQuit() {
+        g_invisibleMode = false;
+        PlayLayer::onQuit();
     }
 };
 
