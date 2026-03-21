@@ -5,8 +5,6 @@ using namespace geode::prelude;
 
 static bool g_invisibleMode = false;
 
-// Recursively walk the node tree and hide/show every GameObject.
-// PlayerObject is skipped so your icon stays visible.
 static void applyVisibilityToNode(cocos2d::CCNode* node, bool invisible) {
     if (!node) return;
 
@@ -17,7 +15,6 @@ static void applyVisibilityToNode(cocos2d::CCNode* node, bool invisible) {
         obj->setVisible(!invisible);
     }
 
-    // Geode v5 replacement for CCARRAY_FOREACH
     for (auto child : CCArrayExt<cocos2d::CCNode*>(node->getChildren())) {
         applyVisibilityToNode(child, invisible);
     }
@@ -60,8 +57,14 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         return true;
     }
 
-    void createObjectsFromSetupFinished() {
-        PlayLayer::createObjectsFromSetupFinished();
+    // ---------------------------------------------------------------
+    //  update — runs every frame
+    //  Re-applies invisibility constantly so newly loaded objects
+    //  ahead of the player are always hidden immediately
+    // ---------------------------------------------------------------
+    void update(float dt) {
+        PlayLayer::update(dt);
+
         if (g_invisibleMode) {
             applyVisibilityToNode(this, true);
         }
