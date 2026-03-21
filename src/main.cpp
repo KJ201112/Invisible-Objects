@@ -9,14 +9,11 @@ static void applyOpacityToChildren(CCNode* node, GLubyte opacity) {
     if (!node) return;
 
     for (auto child : CCArrayExt<CCNode*>(node->getChildren())) {
-        if (typeinfo_cast<PlayerObject*>(child)) {
-            continue; // players are handled separately
-        }
+        if (typeinfo_cast<PlayerObject*>(child)) continue;
 
         if (auto rgba = dynamic_cast<CCRGBAProtocol*>(child)) {
             rgba->setOpacity(opacity);
         }
-
         applyOpacityToChildren(child, opacity);
     }
 }
@@ -27,8 +24,7 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
-        if (!PlayLayer::init(level, useReplay, dontCreateObjects))
-            return false;
+        if (!PlayLayer::init(level, useReplay, dontCreateObjects)) return false;
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
@@ -40,7 +36,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         bg->setContentSize({80.f, 24.f});
         bg->setOpacity(180);
 
-        // Fixed create call (explicit nullptr for selected sprite - more reliable)
         auto item = CCMenuItemSpriteExtra::create(
             bg, nullptr,
             this,
@@ -57,13 +52,22 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         return true;
     }
 
+    // NEW: Force every frame so GD can't reset it
+    void update(float dt) override {
+        PlayLayer::update(dt);
+
+        if (g_invisibleMode && m_objectLayer) {
+            applyInvisible(true);
+        }
+    }
+
     void applyInvisible(bool invisible) {
         if (!m_objectLayer) return;
 
         GLubyte op = invisible ? 0 : 255;
         applyOpacityToChildren(m_objectLayer, op);
 
-        // Force players + their children fully visible
+        // Players always fully visible
         if (m_player1) {
             m_player1->setOpacity(255);
             applyOpacityToChildren(m_player1, 255);
@@ -76,7 +80,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
-
         applyInvisible(g_invisibleMode);
 
         if (m_fields->buttonLabel) {
@@ -90,35 +93,29 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         }
     }
 
-    void addObject(GameObject* obj) {
+    void addObject(GameObject* obj) override {
         PlayLayer::addObject(obj);
-
         if (g_invisibleMode && obj) {
             if (!typeinfo_cast<PlayerObject*>(obj)) {
-                if (auto rgba = dynamic_cast<CCRGBAProtocol*>(obj)) {
-                    rgba->setOpacity(0);
-                }
+                if (auto rgba = dynamic_cast<CCRGBAProtocol*>(obj)) rgba->setOpacity(0);
                 applyOpacityToChildren(obj, 0);
-            } else {
-                obj->setOpacity(255);
-                applyOpacityToChildren(obj, 255);
             }
         }
     }
 
-    void resetLevel() {
+    void resetLevel() override {
         PlayLayer::resetLevel();
         if (g_invisibleMode) {
             applyInvisible(true);
         }
     }
 
-    void onQuit() {
+    void onQuit() override {
         g_invisibleMode = false;
         PlayLayer::onQuit();
     }
 };
 
 $on_mod(Loaded) {
-    log::info("Invisible Objects Mod loaded");
+    log::info("Invisible Objects Mod loaded (now with per-frame force!)");
 }
