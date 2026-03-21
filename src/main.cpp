@@ -45,11 +45,10 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
     }
 
     void hideObjects() {
-        // Save original parents and z-orders of players
+        // Pull player1 out of objectLayer, attach directly to PlayLayer
         if (m_player1) {
             m_fields->playerParent1 = m_player1->getParent();
             m_fields->playerZ1 = m_player1->getZOrder();
-            // Move player1 directly to PlayLayer at very high z
             m_player1->retain();
             m_player1->removeFromParentAndCleanup(false);
             this->addChild(m_player1, 9000);
@@ -64,14 +63,14 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
             m_player2->release();
         }
 
-        // Now hide the entire object layer — everything is gone
+        // Only hide objectLayer — ground and background stay visible
         if (m_objectLayer) {
             m_objectLayer->setVisible(false);
         }
     }
 
     void showObjects() {
-        // Restore object layer
+        // Show objectLayer again
         if (m_objectLayer) {
             m_objectLayer->setVisible(true);
         }
@@ -122,19 +121,12 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
     }
 
     void resetLevel() {
-        // Restore before reset so GD can reposition players properly
-        if (g_invisibleMode) {
-            showObjects();
-        }
+        if (g_invisibleMode) showObjects();
         PlayLayer::resetLevel();
-        // Re-hide after reset
-        if (g_invisibleMode) {
-            hideObjects();
-        }
+        if (g_invisibleMode) hideObjects();
     }
 
     void onQuit() {
-        // Restore everything before quitting
         if (g_invisibleMode) {
             showObjects();
             g_invisibleMode = false;
