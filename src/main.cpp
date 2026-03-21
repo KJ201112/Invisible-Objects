@@ -5,25 +5,9 @@ using namespace geode::prelude;
 
 static bool g_invisibleMode = false;
 
-static void applyVisibilityToNode(cocos2d::CCNode* node, bool invisible) {
-    if (!node) return;
-
-    if (auto player = typeinfo_cast<PlayerObject*>(node)) {
-        player->setVisible(true);
-    }
-    else if (auto obj = typeinfo_cast<GameObject*>(node)) {
-        obj->setVisible(!invisible);
-    }
-
-    for (auto child : CCArrayExt<cocos2d::CCNode*>(node->getChildren())) {
-        applyVisibilityToNode(child, invisible);
-    }
-}
-
 class $modify(InvisibleObjectsMod, PlayLayer) {
     struct Fields {
         CCLabelBMFont* buttonLabel = nullptr;
-        CCMenu* menu = nullptr;
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
@@ -32,6 +16,7 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
         auto winSize = CCDirector::sharedDirector()->getWinSize();
 
+        // Button label
         auto label = CCLabelBMFont::create("EYE:OFF", "bigFont.fnt");
         label->setScale(0.35f);
         m_fields->buttonLabel = label;
@@ -52,41 +37,35 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         menu->addChild(item);
         menu->setPosition({ 50.f, winSize.height - 25.f });
         this->addChild(menu, 999);
-        m_fields->menu = menu;
 
         return true;
     }
 
-    // ---------------------------------------------------------------
-    //  update — runs every frame
-    //  Re-applies invisibility constantly so newly loaded objects
-    //  ahead of the player are always hidden immediately
-    // ---------------------------------------------------------------
-    void update(float dt) {
-        PlayLayer::update(dt);
-
-        if (g_invisibleMode) {
-            applyVisibilityToNode(this, true);
-        }
-    }
-
-    void addObject(GameObject* object) {
-        PlayLayer::addObject(object);
-        if (g_invisibleMode && object) {
-            object->setVisible(false);
-        }
-    }
-
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
-        applyVisibilityToNode(this, g_invisibleMode);
 
+        // Hide/show the entire object layer at once
+        // This is the most reliable method — one call hides everything
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(!g_invisibleMode);
+        }
+
+        // Move player ABOVE the object layer so it's always visible
+        if (m_player1) {
+            m_player1->setZOrder(m_objectLayer ? m_objectLayer->getZOrder() + 10 : 10);
+        }
+        if (m_player2) {
+            m_player2->setZOrder(m_objectLayer ? m_objectLayer->getZOrder() + 10 : 10);
+        }
+
+        // Update button text
         if (m_fields->buttonLabel) {
             m_fields->buttonLabel->setString(
                 g_invisibleMode ? "EYE:ON " : "EYE:OFF"
             );
         }
 
+        // Notification
         if (g_invisibleMode) {
             Notification::create(
                 "Invisible Mode ON - Good luck!",
@@ -104,13 +83,22 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
     void onQuit() {
         g_invisibleMode = false;
+        // Restore object layer visibility when leaving
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(true);
+        }
         PlayLayer::onQuit();
     }
 
     void resetLevel() {
         PlayLayer::resetLevel();
-        if (g_invisibleMode) {
-            applyVisibilityToNode(this, true);
+        // Keep state after death
+        if (m_objectLayer) {
+            m_objectLayer->setVisible(!g_invisibleMode);
+        }
+        // Keep player visible
+        if (m_player1 && m_objectLayer) {
+            m_player1->setZOrder(m_objectLayer->getZOrder() + 10);
         }
     }
 };
