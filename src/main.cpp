@@ -8,10 +8,6 @@ static bool g_invisibleMode = false;
 class $modify(InvisibleObjectsMod, PlayLayer) {
     struct Fields {
         CCLabelBMFont* buttonLabel = nullptr;
-        CCNode* playerParent1 = nullptr;
-        CCNode* playerParent2 = nullptr;
-        int playerZ1 = 0;
-        int playerZ2 = 0;
     };
 
     bool init(GJGameLevel* level, bool useReplay, bool dontCreateObjects) {
@@ -44,60 +40,31 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         return true;
     }
 
-    void hideObjects() {
-        // Pull player1 out of objectLayer, attach directly to PlayLayer
-        if (m_player1) {
-            m_fields->playerParent1 = m_player1->getParent();
-            m_fields->playerZ1 = m_player1->getZOrder();
-            m_player1->retain();
-            m_player1->removeFromParentAndCleanup(false);
-            this->addChild(m_player1, 9000);
-            m_player1->release();
-        }
-        if (m_player2) {
-            m_fields->playerParent2 = m_player2->getParent();
-            m_fields->playerZ2 = m_player2->getZOrder();
-            m_player2->retain();
-            m_player2->removeFromParentAndCleanup(false);
-            this->addChild(m_player2, 9001);
-            m_player2->release();
+    // ---------------------------------------------------------------
+    //  Loop through objectLayer children
+    //  Hide everything EXCEPT the player — player stays in place!
+    // ---------------------------------------------------------------
+    void applyToObjectLayer(bool invisible) {
+        if (!m_objectLayer) return;
+
+        for (auto child : CCArrayExt<CCNode*>(m_objectLayer->getChildren())) {
+            // Skip PlayerObject — always keep player visible
+            if (typeinfo_cast<PlayerObject*>(child)) {
+                child->setVisible(true);
+                continue;
+            }
+            child->setVisible(!invisible);
         }
 
-        // Only hide objectLayer — ground and background stay visible
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(false);
-        }
-    }
-
-    void showObjects() {
-        // Show objectLayer again
-        if (m_objectLayer) {
-            m_objectLayer->setVisible(true);
-        }
-
-        // Move players back to their original parent
-        if (m_player1 && m_fields->playerParent1) {
-            m_player1->retain();
-            m_player1->removeFromParentAndCleanup(false);
-            m_fields->playerParent1->addChild(m_player1, m_fields->playerZ1);
-            m_player1->release();
-        }
-        if (m_player2 && m_fields->playerParent2) {
-            m_player2->retain();
-            m_player2->removeFromParentAndCleanup(false);
-            m_fields->playerParent2->addChild(m_player2, m_fields->playerZ2);
-            m_player2->release();
-        }
+        // Always force players visible just in case
+        if (m_player1) m_player1->setVisible(true);
+        if (m_player2) m_player2->setVisible(true);
     }
 
     void onToggleButton(CCObject*) {
         g_invisibleMode = !g_invisibleMode;
 
-        if (g_invisibleMode) {
-            hideObjects();
-        } else {
-            showObjects();
-        }
+        applyToObjectLayer(g_invisibleMode);
 
         if (m_fields->buttonLabel) {
             m_fields->buttonLabel->setString(
@@ -120,17 +87,23 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         log::info("Invisible mode toggled");
     }
 
+    // Re-hide after new objects stream in
+    void addObject(GameObject* obj) {
+        PlayLayer::addObject(obj);
+        if (g_invisibleMode && obj && !typeinfo_cast<PlayerObject*>(obj)) {
+            obj->setVisible(false);
+        }
+    }
+
     void resetLevel() {
-        if (g_invisibleMode) showObjects();
         PlayLayer::resetLevel();
-        if (g_invisibleMode) hideObjects();
+        if (g_invisibleMode) {
+            applyToObjectLayer(true);
+        }
     }
 
     void onQuit() {
-        if (g_invisibleMode) {
-            showObjects();
-            g_invisibleMode = false;
-        }
+        g_invisibleMode = false;
         PlayLayer::onQuit();
     }
 };
