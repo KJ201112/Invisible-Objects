@@ -52,7 +52,7 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         return true;
     }
 
-    // NEW: Force every frame so GD can't reset it
+    // Force every frame so GD can't reset opacity
     void update(float dt) override {
         PlayLayer::update(dt);
 
@@ -93,7 +93,7 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         }
     }
 
-    void addObject(GameObject* obj) override {
+    void addObject(GameObject* obj) {           // ← NO override (fixed)
         PlayLayer::addObject(obj);
         if (g_invisibleMode && obj) {
             if (!typeinfo_cast<PlayerObject*>(obj)) {
@@ -103,19 +103,19 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
         }
     }
 
-    void resetLevel() override {
+    void resetLevel() {                         // ← NO override (fixed)
         PlayLayer::resetLevel();
         if (g_invisibleMode) {
             applyInvisible(true);
         }
     }
 
-    void onQuit() override {
+    void onQuit() {                             // ← NO override (fixed)
         g_invisibleMode = false;
         PlayLayer::onQuit();
     }
 };
 
 $on_mod(Loaded) {
-    log::info("Invisible Objects Mod loaded (now with per-frame force!)");
+    log::info("Invisible Objects Mod loaded (per-frame + Android fix)");
 }
