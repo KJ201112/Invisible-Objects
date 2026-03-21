@@ -17,14 +17,9 @@ static void applyVisibilityToNode(cocos2d::CCNode* node, bool invisible) {
         obj->setVisible(!invisible);
     }
 
-    auto children = node->getChildren();
-    if (!children) return;
-
-    CCObject* childObj = nullptr;
-    CCARRAY_FOREACH(children, childObj) {
-        if (auto child = typeinfo_cast<cocos2d::CCNode*>(childObj)) {
-            applyVisibilityToNode(child, invisible);
-        }
+    // Geode v5 replacement for CCARRAY_FOREACH
+    for (auto child : CCArrayExt<cocos2d::CCNode*>(node->getChildren())) {
+        applyVisibilityToNode(child, invisible);
     }
 }
 
@@ -67,7 +62,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
     void createObjectsFromSetupFinished() {
         PlayLayer::createObjectsFromSetupFinished();
-
         if (g_invisibleMode) {
             applyVisibilityToNode(this, true);
         }
@@ -75,7 +69,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
 
     void addObject(GameObject* object) {
         PlayLayer::addObject(object);
-
         if (g_invisibleMode && object) {
             object->setVisible(false);
         }
@@ -91,7 +84,6 @@ class $modify(InvisibleObjectsMod, PlayLayer) {
             );
         }
 
-        // Notification — no {} format strings to avoid build errors
         if (g_invisibleMode) {
             Notification::create(
                 "Invisible Mode ON - Good luck!",
