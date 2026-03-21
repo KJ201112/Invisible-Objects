@@ -9,6 +9,6 @@
     "version": "v1.0.0",
     "developer": "KJ",
     "description": "Tap 3 fingers in any level to toggle all objects invisible. Hitboxes stay active!",
-    "icon": "icon.png",
+    "icon": "logo.png",
     "tags": ["gameplay", "challenge", "difficulty"]
 }
